@@ -170,6 +170,10 @@
         <div class="val" id="v-good">0</div>
     </div>
     <div class="card wide">
+        <label>Created At</label>
+        <div class="val" id="v-created">—</div>
+    </div>
+    <div class="card wide">
         <label>Completed At</label>
         <div class="val" id="v-completed">—</div>
     </div>
@@ -253,6 +257,7 @@
             document.getElementById("v-total").textContent     = data.total_produced;
             document.getElementById("v-defective").textContent = data.defective_count;
             document.getElementById("v-good").textContent      = data.total_produced - data.defective_count;
+            document.getElementById("v-created").textContent   = formatTime(data.created_at);
             document.getElementById("v-completed").textContent = formatTime(data.completed_at);
 
             const alert = document.getElementById("defect-alert");
@@ -263,7 +268,11 @@
                 alert.classList.remove("show");
             }
 
-            document.getElementById("conn").textContent = "● Connected — refreshing every second";
+            if (data.machine_state === "faulted") {
+                document.getElementById("conn").textContent = "● Fault active — press Reset to clear the line";
+            } else {
+                document.getElementById("conn").textContent = "● Connected — refreshing every second";
+            }
         } catch {
             document.getElementById("conn").textContent = "○ Backend offline — retrying...";
         }
