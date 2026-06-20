@@ -29,6 +29,9 @@ class ProductionLine:
         self.machine_state      = "idle"
         self.current_station    = ""
         self.current_product_id = 0
+        self.product_status     = "waiting"
+        self.created_at         = None
+        self.completed_at       = None
         self.total_produced     = 0
         self.defective_count    = 0
         self.last_defect_reason = ""
@@ -57,9 +60,10 @@ class ProductionLine:
 
     def stop(self):
         with self._lock:
-            self._running      = False
-            self.machine_state = "idle"
+            self._running        = False
+            self.machine_state   = "idle"
             self.current_station = ""
+            self.product_status  = "waiting"
         return {"ok": True, "msg": "Production stopped"}
 
     def reset(self):
@@ -68,6 +72,9 @@ class ProductionLine:
             self.machine_state      = "idle"
             self.current_station    = ""
             self.current_product_id = 0
+            self.product_status     = "waiting"
+            self.created_at         = None
+            self.completed_at       = None
             self.total_produced     = 0
             self.defective_count    = 0
             self.last_defect_reason = ""
@@ -79,6 +86,10 @@ class ProductionLine:
                 "machine_state":      self.machine_state,
                 "current_station":    self.current_station,
                 "current_product_id": self.current_product_id,
+                "product_status":     self.product_status,
+                "defect_reason":      self.last_defect_reason,
+                "created_at":         self.created_at,
+                "completed_at":       self.completed_at,
                 "total_produced":     self.total_produced,
                 "defective_count":    self.defective_count,
                 "last_defect_reason": self.last_defect_reason,
@@ -104,6 +115,12 @@ class ProductionLine:
         defect_reason = ""
         failed_station = STATIONS[-1]["name"]   # default fallback
 
+        with self._lock:
+            self.created_at = created_at.isoformat()
+            self.completed_at = None
+            self.product_status = "processing"
+            self.last_defect_reason = ""
+
         for station in STATIONS:
             if not self._running:
                 return   # machine was stopped mid-product
@@ -119,6 +136,8 @@ class ProductionLine:
                 defect_reason  = station["defect"]
                 failed_station = station["name"]
                 with self._lock:
+                    self.machine_state = "faulted"
+                    self.product_status = "defective"
                     self.last_defect_reason = defect_reason
                 break   # no point continuing assembly with a defect
 
@@ -130,7 +149,11 @@ class ProductionLine:
             self.total_produced += 1
             if is_defective:
                 self.defective_count += 1
+            else:
+                self.product_status = "completed"
+                self.machine_state = "running"
             self.current_station = ""
+            self.completed_at = completed_at.isoformat()
 
         # Send data to InfluxDB via callback (set in main.py)
         if self.on_product_complete:
