@@ -1,295 +1,866 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- cspell:words HMI Segoe SMAP snum sname dlabel dreason -->
+    <!-- cspell:words HMI Segoe SMAP KPI KPIs CTA -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Glue Stick Line — HMI</title>
+    <title>Glue Stick Line Dashboard</title>
     <style>
+        :root {
+            --bg: #09111b;
+            --bg-soft: #0f1b29;
+            --panel: rgba(12, 24, 39, 0.88);
+            --panel-strong: rgba(15, 30, 47, 0.96);
+            --line: rgba(148, 163, 184, 0.18);
+            --text: #e5eef7;
+            --muted: #8ea0b5;
+            --heading: #f8fbff;
+            --accent: #4cc9f0;
+            --accent-2: #90e0ef;
+            --good: #58d68d;
+            --warn: #ffb454;
+            --bad: #ff6b6b;
+            --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background: #0f0f1a;
-            color: #e0e0e0;
+            font-family: "Segoe UI", system-ui, sans-serif;
+            color: var(--text);
             min-height: 100vh;
-            padding: 24px;
-            max-width: 680px;
+            background:
+                radial-gradient(circle at top left, rgba(76, 201, 240, 0.22), transparent 28%),
+                radial-gradient(circle at top right, rgba(88, 214, 141, 0.14), transparent 22%),
+                linear-gradient(180deg, #08111b 0%, #0b1420 45%, #0d1724 100%);
+        }
+
+        .shell {
+            width: min(1180px, calc(100% - 32px));
             margin: 0 auto;
+            padding: 28px 0 48px;
         }
 
-        /* ── Header ── */
-        header { text-align: center; margin-bottom: 28px; }
-        header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #fff; }
-        header p  { font-size: 0.78rem; color: #666; margin-top: 4px; }
-
-        /* ── State Badge ── */
-        #state-badge {
-            display: flex; align-items: center; justify-content: center; gap: 10px;
-            font-size: 1.3rem; font-weight: 700; letter-spacing: 3px;
-            padding: 16px; border-radius: 12px; margin-bottom: 20px;
-            transition: all 0.3s;
+        .hero,
+        .panel,
+        .architecture {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(10px);
         }
-        #state-badge.idle    { background: #1e1e2e; color: #888;    border: 2px solid #333; }
-        #state-badge.running { background: #0d2a1a; color: #00e676; border: 2px solid #00c853; }
-        #state-badge.faulted { background: #2a0d0d; color: #ff5252; border: 2px solid #f44336; }
 
-        .dot {
-            width: 12px; height: 12px; border-radius: 50%;
-            background: #555; flex-shrink: 0;
+        .hero {
+            border-radius: 28px;
+            padding: 30px;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 22px;
         }
-        #state-badge.running .dot { background: #00e676; box-shadow: 0 0 8px #00e676; animation: blink 1s infinite; }
-        #state-badge.faulted .dot { background: #ff5252; box-shadow: 0 0 8px #ff5252; animation: blink 0.4s infinite; }
 
-        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+        .hero::after {
+            content: "";
+            position: absolute;
+            inset: auto -80px -100px auto;
+            width: 280px;
+            height: 280px;
+            background: radial-gradient(circle, rgba(76, 201, 240, 0.22), transparent 65%);
+            pointer-events: none;
+        }
 
-        /* ── Control Buttons ── */
-        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        .hero-top,
+        .overview-grid,
+        .stats-grid,
+        .main-grid,
+        .arch-grid {
+            display: grid;
+            gap: 18px;
+        }
+
+        .hero-top {
+            grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
+            align-items: start;
+        }
+
+        .eyebrow {
+            display: inline-block;
+            font-size: 0.75rem;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: var(--accent-2);
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-size: clamp(2rem, 4vw, 3.3rem);
+            line-height: 1.05;
+            color: var(--heading);
+            margin-bottom: 12px;
+            max-width: 10ch;
+        }
+
+        .hero-copy {
+            color: var(--muted);
+            max-width: 62ch;
+            line-height: 1.65;
+            font-size: 1rem;
+        }
+
+        .badge-row,
+        .cta-row,
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .badge {
+            border: 1px solid rgba(144, 224, 239, 0.18);
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--accent-2);
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 0.8rem;
+            letter-spacing: 0.04em;
+        }
+
+        .hero-side {
+            background: var(--panel-strong);
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            padding: 18px;
+        }
+
+        .hero-side h2,
+        .section-title {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+
+        .hero-side p {
+            color: var(--text);
+            line-height: 1.7;
+            font-size: 0.95rem;
+        }
+
+        .cta-row {
+            margin-top: 18px;
+        }
+
+        .cta {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 44px;
+            padding: 0 16px;
+            border-radius: 999px;
+            font-weight: 700;
+            text-decoration: none;
+            border: 1px solid transparent;
+        }
+
+        .cta-primary {
+            background: linear-gradient(135deg, var(--accent), #63d2ff);
+            color: #071019;
+        }
+
+        .cta-secondary {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text);
+            border-color: var(--line);
+        }
+
+        .overview-grid {
+            grid-template-columns: 1.1fr 0.9fr;
+            margin-top: 22px;
+        }
+
+        .panel {
+            border-radius: 24px;
+            padding: 22px;
+        }
+
+        .status-card {
+            display: grid;
+            gap: 16px;
+        }
+
+        .state-band {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            border-radius: 18px;
+            padding: 16px 18px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .state-band.idle { border-color: rgba(148, 163, 184, 0.25); }
+        .state-band.running { border-color: rgba(88, 214, 141, 0.35); background: rgba(88, 214, 141, 0.09); }
+        .state-band.faulted { border-color: rgba(255, 107, 107, 0.4); background: rgba(255, 107, 107, 0.08); }
+
+        .state-main {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .state-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #76879a;
+            box-shadow: 0 0 0 6px rgba(118, 135, 154, 0.12);
+        }
+
+        .state-band.running .state-dot {
+            background: var(--good);
+            box-shadow: 0 0 0 6px rgba(88, 214, 141, 0.15), 0 0 18px rgba(88, 214, 141, 0.55);
+        }
+
+        .state-band.faulted .state-dot {
+            background: var(--bad);
+            box-shadow: 0 0 0 6px rgba(255, 107, 107, 0.15), 0 0 18px rgba(255, 107, 107, 0.5);
+        }
+
+        .state-label {
+            font-size: 0.8rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .state-value {
+            font-size: clamp(1.3rem, 2.6vw, 2rem);
+            font-weight: 800;
+            color: var(--heading);
+            line-height: 1.1;
+        }
+
+        .state-note {
+            color: var(--muted);
+            font-size: 0.9rem;
+            text-align: right;
+        }
+
+        .live-summary {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .summary-item {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 14px;
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        .summary-item span {
+            display: block;
+            color: var(--muted);
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin-bottom: 6px;
+        }
+
+        .summary-item strong {
+            font-size: 1rem;
+            color: var(--heading);
+            line-height: 1.4;
+        }
+
         .controls button {
-            flex: 1; padding: 13px; font-size: 0.95rem; font-weight: 700;
-            letter-spacing: 1.5px; border: none; border-radius: 8px;
-            cursor: pointer; transition: opacity .2s, transform .1s;
+            flex: 1 1 140px;
+            min-height: 50px;
+            border-radius: 16px;
+            border: none;
+            cursor: pointer;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            transition: transform 0.12s ease, opacity 0.2s ease;
         }
-        .controls button:hover  { opacity: 0.85; }
-        .controls button:active { transform: scale(0.96); }
-        #btn-start { background: #00c853; color: #000; }
-        #btn-stop  { background: #e53935; color: #fff; }
-        #btn-reset { background: #fb8c00; color: #fff; }
 
-        /* ── Stats Grid ── */
-        .stats {
-            display: grid; grid-template-columns: 1fr 1fr;
-            gap: 10px; margin-bottom: 20px;
-        }
-        .card {
-            background: #1a1a2e; border: 1px solid #2a2a44;
-            border-radius: 10px; padding: 14px 16px;
-        }
-        .card label {
-            display: block; font-size: 0.68rem; text-transform: uppercase;
-            letter-spacing: 1px; color: #666; margin-bottom: 6px;
-        }
-        .card .val { font-size: 1.5rem; font-weight: 700; color: #fff; }
-        .card .val.red { color: #ff5252; }
-        /* wider card for station name */
-        .card.wide { grid-column: span 2; }
-        .card.wide .val { font-size: 1rem; padding-top: 2px; }
+        .controls button:hover { opacity: 0.92; }
+        .controls button:active { transform: translateY(1px) scale(0.99); }
+        #btn-start { background: linear-gradient(135deg, #5dde99, #37c871); color: #05130b; }
+        #btn-stop  { background: linear-gradient(135deg, #ff7b7b, #ff5d5d); color: #fff; }
+        #btn-reset { background: linear-gradient(135deg, #ffc86c, #ffad33); color: #291400; }
 
-        /* ── Station Pipeline ── */
-        .section-label {
-            font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px;
-            color: #555; margin-bottom: 10px;
+        .stats-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin: 22px 0;
         }
-        .pipeline { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+
+        .stat-card {
+            border-radius: 20px;
+            padding: 20px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow);
+        }
+
+        .stat-card .label {
+            color: var(--muted);
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .value {
+            font-size: clamp(1.8rem, 3vw, 2.4rem);
+            font-weight: 800;
+            color: var(--heading);
+            line-height: 1.1;
+        }
+
+        .stat-card .sub {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .stat-card.alert .value { color: var(--bad); }
+        .stat-card.good .value { color: var(--good); }
+
+        .main-grid {
+            grid-template-columns: 1.15fr 0.85fr;
+        }
+
+        .pipeline {
+            display: grid;
+            gap: 12px;
+            margin-top: 14px;
+        }
+
         .station {
-            display: flex; align-items: center; gap: 12px;
-            background: #1a1a2e; border: 1px solid #2a2a44;
-            border-radius: 8px; padding: 11px 16px;
-            transition: all 0.3s;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 14px;
+            align-items: center;
+            transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
         }
+
         .station.active {
-            border-color: #00c853; background: #0a1f12;
-            box-shadow: 0 0 14px rgba(0,200,83,0.15);
+            border-color: rgba(88, 214, 141, 0.45);
+            background: rgba(88, 214, 141, 0.08);
+            transform: translateX(4px);
         }
-        .snum {
-            width: 26px; height: 26px; border-radius: 50%;
-            background: #252535; display: flex; align-items: center;
-            justify-content: center; font-size: 0.78rem; font-weight: 700;
-            color: #666; flex-shrink: 0;
-        }
-        .station.active .snum { background: #00c853; color: #000; }
-        .sname { font-size: 0.88rem; color: #aaa; }
-        .station.active .sname { color: #fff; font-weight: 600; }
-        .stag {
-            margin-left: auto; font-size: 0.7rem;
-            background: #252535; color: #555;
-            padding: 2px 8px; border-radius: 20px;
-        }
-        .station.active .stag { background: #00c853; color: #000; font-weight: 700; }
 
-        /* ── Defect Alert ── */
-        #defect-alert {
-            background: #1e0808; border: 1px solid #c62828;
-            border-radius: 10px; padding: 14px 18px; display: none;
+        .station-num {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-weight: 800;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--heading);
         }
-        #defect-alert.show { display: block; }
-        #defect-alert .dlabel {
-            font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px;
-            color: #ef5350; margin-bottom: 4px;
-        }
-        #defect-alert .dreason { font-size: 1rem; font-weight: 600; color: #ff8a80; }
 
-        /* ── Footer ── */
-        #conn { text-align: center; font-size: 0.68rem; color: #444; margin-top: 18px; }
+        .station.active .station-num {
+            background: linear-gradient(135deg, #5dde99, #37c871);
+            color: #08120d;
+        }
+
+        .station-name {
+            font-size: 1rem;
+            color: var(--heading);
+            font-weight: 700;
+        }
+
+        .station-meta {
+            color: var(--muted);
+            font-size: 0.88rem;
+            margin-top: 4px;
+        }
+
+        .station-tag {
+            border-radius: 999px;
+            padding: 7px 12px;
+            font-size: 0.74rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--muted);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--line);
+        }
+
+        .station.active .station-tag {
+            color: #08120d;
+            background: #5dde99;
+            border-color: transparent;
+            font-weight: 800;
+        }
+
+        .fault-card {
+            display: grid;
+            gap: 14px;
+        }
+
+        .fault-banner {
+            border-radius: 18px;
+            padding: 16px;
+            border: 1px solid rgba(255, 107, 107, 0.25);
+            background: rgba(255, 107, 107, 0.07);
+        }
+
+        .fault-banner .headline {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+            color: #ff9a9a;
+            margin-bottom: 8px;
+        }
+
+        .fault-banner .reason {
+            font-size: 1.05rem;
+            color: var(--heading);
+            font-weight: 700;
+            line-height: 1.45;
+        }
+
+        .fault-banner.safe {
+            border-color: rgba(88, 214, 141, 0.2);
+            background: rgba(88, 214, 141, 0.06);
+        }
+
+        .fault-banner.safe .headline { color: #92efb9; }
+
+        .meta-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .meta-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .meta-row:last-child { border-bottom: 0; padding-bottom: 0; }
+
+        .meta-row span {
+            color: var(--muted);
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .meta-row strong {
+            text-align: right;
+            color: var(--heading);
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        .architecture {
+            border-radius: 24px;
+            padding: 24px;
+            margin-top: 22px;
+        }
+
+        .arch-grid {
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            align-items: stretch;
+            margin-top: 16px;
+        }
+
+        .arch-card {
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.025);
+            border-radius: 18px;
+            padding: 18px;
+            min-height: 140px;
+        }
+
+        .arch-card h3 {
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--accent-2);
+            margin-bottom: 10px;
+        }
+
+        .arch-card p {
+            color: var(--muted);
+            line-height: 1.6;
+            font-size: 0.92rem;
+        }
+
+        .footer-note {
+            margin-top: 18px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.88rem;
+        }
+
+        @media (max-width: 980px) {
+            .hero-top,
+            .overview-grid,
+            .main-grid,
+            .stats-grid,
+            .arch-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .state-band {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .state-note { text-align: left; }
+        }
+
+        @media (max-width: 640px) {
+            .shell { width: min(100% - 20px, 1180px); padding-top: 20px; }
+            .hero, .panel, .architecture, .stat-card { border-radius: 20px; }
+            .live-summary { grid-template-columns: 1fr; }
+            .station { grid-template-columns: auto 1fr; }
+            .station-tag { grid-column: 1 / -1; justify-self: start; }
+        }
     </style>
 </head>
 <body>
+<main class="shell">
+    <section class="hero">
+        <div class="hero-top">
+            <div>
+                <span class="eyebrow">Advanced Programming Project</span>
+                <h1>Glue Stick Production Line Dashboard</h1>
+                <p class="hero-copy">
+                    A live industrial monitoring interface for a simulated four-stage glue stick assembly line.
+                    This dashboard combines a Python backend, real-time HMI controls, InfluxDB logging, and
+                    Grafana-ready production telemetry in one clear project view.
+                </p>
+                <div class="badge-row" style="margin-top: 18px;">
+                    <span class="badge">FastAPI Backend</span>
+                    <span class="badge">InfluxDB Telemetry</span>
+                    <span class="badge">Grafana Metrics</span>
+                    <span class="badge">Railway-Ready Stack</span>
+                </div>
+                <div class="cta-row">
+                    <a class="cta cta-primary" href="/">Open Live HMI</a>
+                    <a class="cta cta-secondary" href="/health" target="_blank" rel="noreferrer">View API Status</a>
+                    <a class="cta cta-secondary" href="http://127.0.0.1:3000" target="_blank" rel="noreferrer">Open Grafana</a>
+                </div>
+            </div>
+            <aside class="hero-side">
+                <h2>Project Scope</h2>
+                <p>
+                    Product flow includes glue core insertion, twist mechanism assembly, outer body mounting,
+                    and cap placement. The system tracks machine state, product status, timestamps, defect
+                    reason, and production totals for demo-ready quality monitoring.
+                </p>
+            </aside>
+        </div>
 
-<header>
-    <h1>🏭 Glue Stick Production Line</h1>
-    <p>Human Machine Interface — Live Monitor</p>
-</header>
+        <div class="overview-grid">
+            <section class="panel status-card">
+                <div>
+                    <p class="section-title">Live Operations Overview</p>
+                    <div id="state-band" class="state-band idle">
+                        <div class="state-main">
+                            <span class="state-dot"></span>
+                            <div>
+                                <div class="state-label">Machine State</div>
+                                <div class="state-value" id="state-text">IDLE</div>
+                            </div>
+                        </div>
+                        <div class="state-note" id="state-note">System connected and waiting for operator input.</div>
+                    </div>
+                </div>
 
-<!-- State badge -->
-<div id="state-badge" class="idle">
-    <span class="dot"></span>
-    <span id="state-text">IDLE</span>
-</div>
+                <div class="live-summary">
+                    <article class="summary-item">
+                        <span>Current Station</span>
+                        <strong id="v-station">—</strong>
+                    </article>
+                    <article class="summary-item">
+                        <span>Product Status</span>
+                        <strong id="v-status">waiting</strong>
+                    </article>
+                    <article class="summary-item">
+                        <span>Current Product ID</span>
+                        <strong id="v-pid">—</strong>
+                    </article>
+                    <article class="summary-item">
+                        <span>Connection</span>
+                        <strong id="conn">Connecting to backend...</strong>
+                    </article>
+                </div>
+            </section>
 
-<!-- Controls -->
-<div class="controls">
-    <button id="btn-start" onclick="cmd('start')">▶ START</button>
-    <button id="btn-stop"  onclick="cmd('stop')">■ STOP</button>
-    <button id="btn-reset" onclick="cmd('reset')">↺ RESET</button>
-</div>
+            <section class="panel">
+                <p class="section-title">Operator Controls</p>
+                <div class="controls">
+                    <button id="btn-start" onclick="cmd('start')">Start</button>
+                    <button id="btn-stop" onclick="cmd('stop')">Stop</button>
+                    <button id="btn-reset" onclick="cmd('reset')">Reset</button>
+                </div>
+            </section>
+        </div>
+    </section>
 
-<!-- Stats -->
-<div class="stats">
-    <div class="card wide">
-        <label>Active Station</label>
-        <div class="val" id="v-station">—</div>
-    </div>
-    <div class="card">
-        <label>Product Status</label>
-        <div class="val" id="v-status">waiting</div>
-    </div>
-    <div class="card">
-        <label>Product ID</label>
-        <div class="val" id="v-pid">—</div>
-    </div>
-    <div class="card">
-        <label>Total Produced</label>
-        <div class="val" id="v-total">0</div>
-    </div>
-    <div class="card">
-        <label>Defective</label>
-        <div class="val red" id="v-defective">0</div>
-    </div>
-    <div class="card">
-        <label>Good Products</label>
-        <div class="val" id="v-good">0</div>
-    </div>
-    <div class="card wide">
-        <label>Created At</label>
-        <div class="val" id="v-created">—</div>
-    </div>
-    <div class="card wide">
-        <label>Completed At</label>
-        <div class="val" id="v-completed">—</div>
-    </div>
-</div>
+    <section class="stats-grid">
+        <article class="stat-card">
+            <div class="label">Total Produced</div>
+            <div class="value" id="v-total">0</div>
+            <div class="sub">All completed and defective outputs logged.</div>
+        </article>
+        <article class="stat-card good">
+            <div class="label">Good Products</div>
+            <div class="value" id="v-good">0</div>
+            <div class="sub">Products that passed all four stations.</div>
+        </article>
+        <article class="stat-card alert">
+            <div class="label">Defective Products</div>
+            <div class="value" id="v-defective">0</div>
+            <div class="sub">Units rejected due to faults or assembly defects.</div>
+        </article>
+        <article class="stat-card">
+            <div class="label">Defect Rate</div>
+            <div class="value" id="v-rate">0%</div>
+            <div class="sub">Live ratio of defective output to total production.</div>
+        </article>
+    </section>
 
-<!-- Pipeline -->
-<p class="section-label">Assembly Pipeline</p>
-<div class="pipeline">
-    <div class="station" id="s1">
-        <div class="snum">1</div>
-        <div class="sname">Glue Core Insertion</div>
-        <div class="stag">idle</div>
-    </div>
-    <div class="station" id="s2">
-        <div class="snum">2</div>
-        <div class="sname">Twist Mechanism Assembly</div>
-        <div class="stag">idle</div>
-    </div>
-    <div class="station" id="s3">
-        <div class="snum">3</div>
-        <div class="sname">Outer Body Mounting</div>
-        <div class="stag">idle</div>
-    </div>
-    <div class="station" id="s4">
-        <div class="snum">4</div>
-        <div class="sname">Cap Placement</div>
-        <div class="stag">idle</div>
-    </div>
-</div>
+    <section class="main-grid">
+        <section class="panel">
+            <p class="section-title">Assembly Pipeline</p>
+            <div class="pipeline">
+                <div class="station" id="s1">
+                    <div class="station-num">1</div>
+                    <div>
+                        <div class="station-name">Glue Core Insertion</div>
+                        <div class="station-meta">Initial material insertion and placement check.</div>
+                    </div>
+                    <div class="station-tag">Idle</div>
+                </div>
+                <div class="station" id="s2">
+                    <div class="station-num">2</div>
+                    <div>
+                        <div class="station-name">Twist Mechanism Assembly</div>
+                        <div class="station-meta">Drive mechanism fit and movement alignment.</div>
+                    </div>
+                    <div class="station-tag">Idle</div>
+                </div>
+                <div class="station" id="s3">
+                    <div class="station-num">3</div>
+                    <div>
+                        <div class="station-name">Outer Body Mounting</div>
+                        <div class="station-meta">Body lock verification and structural fit.</div>
+                    </div>
+                    <div class="station-tag">Idle</div>
+                </div>
+                <div class="station" id="s4">
+                    <div class="station-num">4</div>
+                    <div>
+                        <div class="station-name">Cap Placement</div>
+                        <div class="station-meta">Final enclosure, sealing, and finish step.</div>
+                    </div>
+                    <div class="station-tag">Idle</div>
+                </div>
+            </div>
+        </section>
 
-<!-- Defect alert -->
-<div id="defect-alert">
-    <div class="dlabel">⚠ Last Defect Detected</div>
-    <div class="dreason" id="v-defect-reason">—</div>
-</div>
+        <section class="panel fault-card">
+            <div>
+                <p class="section-title">Fault And Quality Monitor</p>
+                <div id="fault-banner" class="fault-banner safe">
+                    <div class="headline" id="fault-headline">Quality Status</div>
+                    <div class="reason" id="v-defect-reason">No active defect. Line is ready for production.</div>
+                </div>
+            </div>
 
-<div id="conn">Connecting to backend...</div>
+            <div class="meta-list">
+                <div class="meta-row">
+                    <span>Created At</span>
+                    <strong id="v-created">—</strong>
+                </div>
+                <div class="meta-row">
+                    <span>Completed At</span>
+                    <strong id="v-completed">—</strong>
+                </div>
+                <div class="meta-row">
+                    <span>Recovery Rule</span>
+                    <strong>Press Reset after a fault before restarting the line.</strong>
+                </div>
+                <div class="meta-row">
+                    <span>Telemetry</span>
+                    <strong>Production and machine-state events are written to InfluxDB.</strong>
+                </div>
+            </div>
+        </section>
+    </section>
+
+    <section class="architecture">
+        <p class="section-title">Project Architecture</p>
+        <div class="arch-grid">
+            <article class="arch-card">
+                <h3>Frontend HMI</h3>
+                <p>
+                    Single-page dashboard for live controls, machine visibility, defect reporting, and project presentation.
+                </p>
+            </article>
+            <article class="arch-card">
+                <h3>FastAPI</h3>
+                <p>
+                    Backend routes expose status plus operator actions for start, stop, and reset.
+                </p>
+            </article>
+            <article class="arch-card">
+                <h3>Simulation</h3>
+                <p>
+                    Four assembly stages model glue stick production flow, faults, and product lifecycle state.
+                </p>
+            </article>
+            <article class="arch-card">
+                <h3>InfluxDB</h3>
+                <p>
+                    Time-series logging stores production results and machine-state events for analysis.
+                </p>
+            </article>
+            <article class="arch-card">
+                <h3>Grafana</h3>
+                <p>
+                    Dashboard layer visualizes totals, defects, and live production quality metrics.
+                </p>
+            </article>
+        </div>
+        <p class="footer-note">
+            Built for a university Advanced Programming Project with a submission-friendly architecture and public-demo direction.
+        </p>
+    </section>
+</main>
 
 <script>
+    const SMAP = {
+        "Glue Core Insertion": "s1",
+        "Twist Mechanism Assembly": "s2",
+        "Outer Body Mounting": "s3",
+        "Cap Placement": "s4",
+    };
+
     function formatTime(value) {
         return value ? new Date(value).toLocaleString() : "—";
     }
 
-    const SMAP = {
-        "Glue Core Insertion":      "s1",
-        "Twist Mechanism Assembly": "s2",
-        "Outer Body Mounting":      "s3",
-        "Cap Placement":            "s4",
-    };
+    function formatRate(total, defective) {
+        if (!total) return "0%";
+        return `${((defective / total) * 100).toFixed(1)}%`;
+    }
 
     function setStateBadge(state) {
-        const badge = document.getElementById("state-badge");
-        badge.className = ""; 
-        badge.classList.add(state);
-        document.getElementById("state-text").textContent = state.toUpperCase();
+        const band = document.getElementById("state-band");
+        band.className = `state-band ${state}`;
+        document.getElementById("state-text").textContent = (state || "idle").toUpperCase();
+
+        const note = document.getElementById("state-note");
+        if (state === "running") {
+            note.textContent = "Line is actively processing products through the assembly stages.";
+        } else if (state === "faulted") {
+            note.textContent = "A fault has stopped production. Reset is required before restart.";
+        } else {
+            note.textContent = "System connected and waiting for operator input.";
+        }
     }
 
     function setActiveStation(name) {
-        document.querySelectorAll(".station").forEach(el => {
+        document.querySelectorAll(".station").forEach((el) => {
             el.classList.remove("active");
-            el.querySelector(".stag").textContent = "idle";
+            el.querySelector(".station-tag").textContent = "Idle";
         });
+
         if (name && SMAP[name]) {
             const el = document.getElementById(SMAP[name]);
             el.classList.add("active");
-            el.querySelector(".stag").textContent = "active";
+            el.querySelector(".station-tag").textContent = "Active";
         }
+    }
+
+    function setFaultPanel(machineState, defectReason) {
+        const banner = document.getElementById("fault-banner");
+        const headline = document.getElementById("fault-headline");
+        const reason = document.getElementById("v-defect-reason");
+
+        if (defectReason) {
+            banner.className = "fault-banner";
+            headline.textContent = machineState === "faulted" ? "Active Fault" : "Last Defect Detected";
+            reason.textContent = defectReason;
+            return;
+        }
+
+        banner.className = "fault-banner safe";
+        headline.textContent = "Quality Status";
+        reason.textContent = "No active defect. Line is ready for production.";
     }
 
     async function poll() {
         try {
-            const r    = await fetch("/status");
-            const data = await r.json();
+            const response = await fetch("/status");
+            const data = await response.json();
 
             setStateBadge(data.machine_state);
             setActiveStation(data.current_station);
+            setFaultPanel(data.machine_state, data.last_defect_reason);
 
-            document.getElementById("v-station").textContent   = data.current_station   || "—";
-            document.getElementById("v-status").textContent    = data.product_status || "waiting";
-            document.getElementById("v-pid").textContent       = data.current_product_id || "—";
-            document.getElementById("v-total").textContent     = data.total_produced;
-            document.getElementById("v-defective").textContent = data.defective_count;
-            document.getElementById("v-good").textContent      = data.total_produced - data.defective_count;
-            document.getElementById("v-created").textContent   = formatTime(data.created_at);
+            const total = data.total_produced || 0;
+            const defective = data.defective_count || 0;
+            const good = total - defective;
+
+            document.getElementById("v-station").textContent = data.current_station || "Waiting for next stage";
+            document.getElementById("v-status").textContent = data.product_status || "waiting";
+            document.getElementById("v-pid").textContent = data.current_product_id || "—";
+            document.getElementById("v-total").textContent = total;
+            document.getElementById("v-good").textContent = good;
+            document.getElementById("v-defective").textContent = defective;
+            document.getElementById("v-rate").textContent = formatRate(total, defective);
+            document.getElementById("v-created").textContent = formatTime(data.created_at);
             document.getElementById("v-completed").textContent = formatTime(data.completed_at);
 
-            const alert = document.getElementById("defect-alert");
-            if (data.last_defect_reason) {
-                document.getElementById("v-defect-reason").textContent = data.last_defect_reason;
-                alert.classList.add("show");
-            } else {
-                alert.classList.remove("show");
-            }
-
             if (data.machine_state === "faulted") {
-                document.getElementById("conn").textContent = "● Fault active — press Reset to clear the line";
+                document.getElementById("conn").textContent = "Fault active";
             } else {
-                document.getElementById("conn").textContent = "● Connected — refreshing every second";
+                document.getElementById("conn").textContent = "Backend connected";
             }
         } catch {
-            document.getElementById("conn").textContent = "○ Backend offline — retrying...";
+            document.getElementById("conn").textContent = "Backend offline";
+            setStateBadge("idle");
+            setActiveStation("");
         }
     }
 
     async function cmd(action) {
         try {
-            await fetch("/" + action, { method: "POST" });
-            poll();   // instant refresh after button press
-        } catch(e) {
-            console.error(e);
+            const response = await fetch(`/${action}`, { method: "POST" });
+            const data = await response.json();
+            if (!data.ok && data.msg) {
+                document.getElementById("conn").textContent = data.msg;
+            }
+            poll();
+        } catch (error) {
+            console.error(error);
+            document.getElementById("conn").textContent = "Command failed";
         }
     }
 
     poll();
     setInterval(poll, 1000);
 </script>
-
 </body>
 </html>
