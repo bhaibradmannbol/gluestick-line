@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- cspell:words HMI Segoe SMAP snum sname dlabel dreason -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glue Stick Line — HMI</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0f0f1a;
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 24px;
+            max-width: 680px;
+            margin: 0 auto;
+        }
+
+        /* ── Header ── */
+        header { text-align: center; margin-bottom: 28px; }
+        header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #fff; }
+        header p  { font-size: 0.78rem; color: #666; margin-top: 4px; }
+
+        /* ── State Badge ── */
+        #state-badge {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            font-size: 1.3rem; font-weight: 700; letter-spacing: 3px;
+            padding: 16px; border-radius: 12px; margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        #state-badge.idle    { background: #1e1e2e; color: #888;    border: 2px solid #333; }
+        #state-badge.running { background: #0d2a1a; color: #00e676; border: 2px solid #00c853; }
+        #state-badge.faulted { background: #2a0d0d; color: #ff5252; border: 2px solid #f44336; }
+
+        .dot {
+            width: 12px; height: 12px; border-radius: 50%;
+            background: #555; flex-shrink: 0;
+        }
+        #state-badge.running .dot { background: #00e676; box-shadow: 0 0 8px #00e676; animation: blink 1s infinite; }
+        #state-badge.faulted .dot { background: #ff5252; box-shadow: 0 0 8px #ff5252; animation: blink 0.4s infinite; }
+
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+        /* ── Control Buttons ── */
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        .controls button {
+            flex: 1; padding: 13px; font-size: 0.95rem; font-weight: 700;
+            letter-spacing: 1.5px; border: none; border-radius: 8px;
+            cursor: pointer; transition: opacity .2s, transform .1s;
+        }
+        .controls button:hover  { opacity: 0.85; }
+        .controls button:active { transform: scale(0.96); }
+        #btn-start { background: #00c853; color: #000; }
+        #btn-stop  { background: #e53935; color: #fff; }
+        #btn-reset { background: #fb8c00; color: #fff; }
+
+        /* ── Stats Grid ── */
+        .stats {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 10px; margin-bottom: 20px;
+        }
+        .card {
+            background: #1a1a2e; border: 1px solid #2a2a44;
+            border-radius: 10px; padding: 14px 16px;
+        }
+        .card label {
+            display: block; font-size: 0.68rem; text-transform: uppercase;
+            letter-spacing: 1px; color: #666; margin-bottom: 6px;
+        }
+        .card .val { font-size: 1.5rem; font-weight: 700; color: #fff; }
+        .card .val.red { color: #ff5252; }
+        /* wider card for station name */
+        .card.wide { grid-column: span 2; }
+        .card.wide .val { font-size: 1rem; padding-top: 2px; }
+
+        /* ── Station Pipeline ── */
+        .section-label {
+            font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px;
+            color: #555; margin-bottom: 10px;
+        }
+        .pipeline { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+        .station {
+            display: flex; align-items: center; gap: 12px;
+            background: #1a1a2e; border: 1px solid #2a2a44;
+            border-radius: 8px; padding: 11px 16px;
+            transition: all 0.3s;
+        }
+        .station.active {
+            border-color: #00c853; background: #0a1f12;
+            box-shadow: 0 0 14px rgba(0,200,83,0.15);
+        }
+        .snum {
+            width: 26px; height: 26px; border-radius: 50%;
+            background: #252535; display: flex; align-items: center;
+            justify-content: center; font-size: 0.78rem; font-weight: 700;
+            color: #666; flex-shrink: 0;
+        }
+        .station.active .snum { background: #00c853; color: #000; }
+        .sname { font-size: 0.88rem; color: #aaa; }
+        .station.active .sname { color: #fff; font-weight: 600; }
+        .stag {
+            margin-left: auto; font-size: 0.7rem;
+            background: #252535; color: #555;
+            padding: 2px 8px; border-radius: 20px;
+        }
+        .station.active .stag { background: #00c853; color: #000; font-weight: 700; }
+
+        /* ── Defect Alert ── */
+        #defect-alert {
+            background: #1e0808; border: 1px solid #c62828;
+            border-radius: 10px; padding: 14px 18px; display: none;
+        }
+        #defect-alert.show { display: block; }
+        #defect-alert .dlabel {
+            font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px;
+            color: #ef5350; margin-bottom: 4px;
+        }
+        #defect-alert .dreason { font-size: 1rem; font-weight: 600; color: #ff8a80; }
+
+        /* ── Footer ── */
+        #conn { text-align: center; font-size: 0.68rem; color: #444; margin-top: 18px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🏭 Glue Stick Production Line</h1>
+    <p>Human Machine Interface — Live Monitor</p>
+</header>
+
+<!-- State badge -->
+<div id="state-badge" class="idle">
+    <span class="dot"></span>
+    <span id="state-text">IDLE</span>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+    <button id="btn-start" onclick="cmd('start')">▶ START</button>
+    <button id="btn-stop"  onclick="cmd('stop')">■ STOP</button>
+    <button id="btn-reset" onclick="cmd('reset')">↺ RESET</button>
+</div>
+
+<!-- Stats -->
+<div class="stats">
+    <div class="card wide">
+        <label>Active Station</label>
+        <div class="val" id="v-station">—</div>
+    </div>
+    <div class="card">
+        <label>Product ID</label>
+        <div class="val" id="v-pid">—</div>
+    </div>
+    <div class="card">
+        <label>Total Produced</label>
+        <div class="val" id="v-total">0</div>
+    </div>
+    <div class="card">
+        <label>Defective</label>
+        <div class="val red" id="v-defective">0</div>
+    </div>
+    <div class="card">
+        <label>Good Products</label>
+        <div class="val" id="v-good">0</div>
+    </div>
+</div>
+
+<!-- Pipeline -->
+<p class="section-label">Assembly Pipeline</p>
+<div class="pipeline">
+    <div class="station" id="s1">
+        <div class="snum">1</div>
+        <div class="sname">Glue Core Insertion</div>
+        <div class="stag">idle</div>
+    </div>
+    <div class="station" id="s2">
+        <div class="snum">2</div>
+        <div class="sname">Twist Mechanism Assembly</div>
+        <div class="stag">idle</div>
+    </div>
+    <div class="station" id="s3">
+        <div class="snum">3</div>
+        <div class="sname">Outer Body Mounting</div>
+        <div class="stag">idle</div>
+    </div>
+    <div class="station" id="s4">
+        <div class="snum">4</div>
+        <div class="sname">Cap Placement</div>
+        <div class="stag">idle</div>
+    </div>
+</div>
+
+<!-- Defect alert -->
+<div id="defect-alert">
+    <div class="dlabel">⚠ Last Defect Detected</div>
+    <div class="dreason" id="v-defect-reason">—</div>
+</div>
+
+<div id="conn">Connecting to backend...</div>
+
+<script>
+    const SMAP = {
+        "Glue Core Insertion":      "s1",
+        "Twist Mechanism Assembly": "s2",
+        "Outer Body Mounting":      "s3",
+        "Cap Placement":            "s4",
+    };
+
+    function setStateBadge(state) {
+        const badge = document.getElementById("state-badge");
+        badge.className = ""; 
+        badge.classList.add(state);
+        document.getElementById("state-text").textContent = state.toUpperCase();
+    }
+
+    function setActiveStation(name) {
+        document.querySelectorAll(".station").forEach(el => {
+            el.classList.remove("active");
+            el.querySelector(".stag").textContent = "idle";
+        });
+        if (name && SMAP[name]) {
+            const el = document.getElementById(SMAP[name]);
+            el.classList.add("active");
+            el.querySelector(".stag").textContent = "active";
+        }
+    }
+
+    async function poll() {
+        try {
+            const r    = await fetch("/status");
+            const data = await r.json();
+
+            setStateBadge(data.machine_state);
+            setActiveStation(data.current_station);
+
+            document.getElementById("v-station").textContent   = data.current_station   || "—";
+            document.getElementById("v-pid").textContent       = data.current_product_id || "—";
+            document.getElementById("v-total").textContent     = data.total_produced;
+            document.getElementById("v-defective").textContent = data.defective_count;
+            document.getElementById("v-good").textContent      = data.total_produced - data.defective_count;
+
+            const alert = document.getElementById("defect-alert");
+            if (data.last_defect_reason) {
+                document.getElementById("v-defect-reason").textContent = data.last_defect_reason;
+                alert.classList.add("show");
+            } else {
+                alert.classList.remove("show");
+            }
+
+            document.getElementById("conn").textContent = "● Connected — refreshing every second";
+        } catch {
+            document.getElementById("conn").textContent = "○ Backend offline — retrying...";
+        }
+    }
+
+    async function cmd(action) {
+        try {
+            await fetch("/" + action, { method: "POST" });
+            poll();   // instant refresh after button press
+        } catch(e) {
+            console.error(e);
+        }
+    }
+
+    poll();
+    setInterval(poll, 1000);
+</script>
+
+</body>
+</html>
