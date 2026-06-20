@@ -1,4 +1,4 @@
-version: '3.8'
+name: gluestick-line
 
 services:
 
@@ -44,8 +44,13 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - INFLUX_URL=http://influxdb:8086
+      - INFLUX_ORG=${INFLUX_ORG}
+      - INFLUX_BUCKET=${INFLUX_BUCKET}
+      - INFLUX_TOKEN=${INFLUX_TOKEN}
     volumes:
       - grafana_data:/var/lib/grafana
+      - ../grafana/provisioning:/etc/grafana/provisioning
     depends_on:
       - influxdb
     restart: unless-stopped

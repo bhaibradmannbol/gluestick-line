@@ -150,6 +150,10 @@
         <div class="val" id="v-station">—</div>
     </div>
     <div class="card">
+        <label>Product Status</label>
+        <div class="val" id="v-status">waiting</div>
+    </div>
+    <div class="card">
         <label>Product ID</label>
         <div class="val" id="v-pid">—</div>
     </div>
@@ -164,6 +168,10 @@
     <div class="card">
         <label>Good Products</label>
         <div class="val" id="v-good">0</div>
+    </div>
+    <div class="card wide">
+        <label>Completed At</label>
+        <div class="val" id="v-completed">—</div>
     </div>
 </div>
 
@@ -201,6 +209,10 @@
 <div id="conn">Connecting to backend...</div>
 
 <script>
+    function formatTime(value) {
+        return value ? new Date(value).toLocaleString() : "—";
+    }
+
     const SMAP = {
         "Glue Core Insertion":      "s1",
         "Twist Mechanism Assembly": "s2",
@@ -236,10 +248,12 @@
             setActiveStation(data.current_station);
 
             document.getElementById("v-station").textContent   = data.current_station   || "—";
+            document.getElementById("v-status").textContent    = data.product_status || "waiting";
             document.getElementById("v-pid").textContent       = data.current_product_id || "—";
             document.getElementById("v-total").textContent     = data.total_produced;
             document.getElementById("v-defective").textContent = data.defective_count;
             document.getElementById("v-good").textContent      = data.total_produced - data.defective_count;
+            document.getElementById("v-completed").textContent = formatTime(data.completed_at);
 
             const alert = document.getElementById("defect-alert");
             if (data.last_defect_reason) {

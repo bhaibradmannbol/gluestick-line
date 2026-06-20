@@ -36,23 +36,31 @@ class ProductionLine:
         self.defective_count    = 0
         self.last_defect_reason = ""
 
-        # Optional callback — set by main.py to write to InfluxDB
+        # Optional callbacks — set by main.py
         self.on_product_complete = None
+        self.on_machine_state_change = None
 
         self._running = False
         self._lock    = threading.Lock()   # prevents race conditions
         self._thread  = None
 
+    def _set_machine_state(self, state: str):
+        changed = self.machine_state != state
+        self.machine_state = state
+        if changed and self.on_machine_state_change:
+            self.on_machine_state_change(state)
+
     # ── Public controls (called by FastAPI endpoints) ─────────────────────────
 
     def start(self):
         with self._lock:
-            if self.machine_state == "running":
+            if self._running:
                 return {"ok": False, "msg": "Already running"}
             if self.machine_state == "faulted":
                 return {"ok": False, "msg": "Machine faulted — press Reset first"}
-            self.machine_state = "running"
-            self._running      = True
+            self._running = True
+            self.product_status = "waiting"
+            self._set_machine_state("running")
 
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
@@ -61,15 +69,14 @@ class ProductionLine:
     def stop(self):
         with self._lock:
             self._running        = False
-            self.machine_state   = "idle"
             self.current_station = ""
             self.product_status  = "waiting"
+            self._set_machine_state("idle")
         return {"ok": True, "msg": "Production stopped"}
 
     def reset(self):
         with self._lock:
             self._running           = False
-            self.machine_state      = "idle"
             self.current_station    = ""
             self.current_product_id = 0
             self.product_status     = "waiting"
@@ -78,6 +85,7 @@ class ProductionLine:
             self.total_produced     = 0
             self.defective_count    = 0
             self.last_defect_reason = ""
+            self._set_machine_state("idle")
         return {"ok": True, "msg": "Line reset — all counters cleared"}
 
     def get_status(self):
@@ -99,9 +107,14 @@ class ProductionLine:
 
     def _run_loop(self):
         """Keeps producing glue sticks until stopped."""
-        while self._running:
+        while True:
+            with self._lock:
+                if not self._running:
+                    break
             self._process_one_product()
-            if self._running:
+            with self._lock:
+                keep_running = self._running
+            if keep_running:
                 time.sleep(0.3)   # brief gap between products
 
     def _process_one_product(self):
@@ -122,10 +135,9 @@ class ProductionLine:
             self.last_defect_reason = ""
 
         for station in STATIONS:
-            if not self._running:
-                return   # machine was stopped mid-product
-
             with self._lock:
+                if not self._running:
+                    return   # machine was stopped mid-product
                 self.current_station = station["name"]
 
             time.sleep(STATION_TIME)   # simulate work being done
@@ -136,7 +148,8 @@ class ProductionLine:
                 defect_reason  = station["defect"]
                 failed_station = station["name"]
                 with self._lock:
-                    self.machine_state = "faulted"
+                    self._running = False
+                    self._set_machine_state("faulted")
                     self.product_status = "defective"
                     self.last_defect_reason = defect_reason
                 break   # no point continuing assembly with a defect
@@ -151,7 +164,6 @@ class ProductionLine:
                 self.defective_count += 1
             else:
                 self.product_status = "completed"
-                self.machine_state = "running"
             self.current_station = ""
             self.completed_at = completed_at.isoformat()
 

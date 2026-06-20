@@ -4,15 +4,23 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
-from influx_client import write_machine_state, write_product
-from simulation import ProductionLine
+try:
+    from .influx_client import write_machine_state, write_product
+    from .simulation import ProductionLine
+except ImportError:
+    from influx_client import write_machine_state, write_product
+    from simulation import ProductionLine
 
 
 app = FastAPI(title="Glue Stick Production Line")
 line = ProductionLine()
 line.on_product_complete = write_product
+line.on_machine_state_change = write_machine_state
 
-FRONTEND_DIR = Path("/frontend")
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parent
+CONTAINER_FRONTEND_DIR = Path("/frontend")
+FRONTEND_DIR = CONTAINER_FRONTEND_DIR if CONTAINER_FRONTEND_DIR.exists() else PROJECT_ROOT / "frontend"
 INDEX_FILE = FRONTEND_DIR / "index.html"
 
 app.add_middleware(
@@ -22,11 +30,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-def _record_machine_state(state: str) -> None:
-    """Write machine-state changes without breaking the API if Influx is down."""
-    write_machine_state(state)
 
 
 @app.get("/")
@@ -46,25 +49,21 @@ def get_status():
     return line.get_status()
 
 
+@app.get("/health")
+def healthcheck():
+    return {"ok": True}
+
+
 @app.post("/start")
 def start_line():
-    result = line.start()
-    if result["ok"]:
-        _record_machine_state("running")
-    return result
+    return line.start()
 
 
 @app.post("/stop")
 def stop_line():
-    result = line.stop()
-    if result["ok"]:
-        _record_machine_state("idle")
-    return result
+    return line.stop()
 
 
 @app.post("/reset")
 def reset_line():
-    result = line.reset()
-    if result["ok"]:
-        _record_machine_state("idle")
-    return result
+    return line.reset()
