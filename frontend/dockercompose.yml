@@ -4,7 +4,7 @@ services:
 
   # ── Python FastAPI backend ─────────────────────────────────────────
   backend:
-    build: ./backend
+    build: ../backend
     container_name: gluestick-backend
     ports:
       - "8000:8000"
@@ -14,7 +14,7 @@ services:
       - INFLUX_ORG=${INFLUX_ORG}
       - INFLUX_BUCKET=${INFLUX_BUCKET}
     volumes:
-      - ./frontend:/frontend   # backend serves frontend from here
+      - ./:/frontend
     depends_on:
       - influxdb
     restart: unless-stopped
@@ -46,7 +46,6 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
     depends_on:
       - influxdb
     restart: unless-stopped
