@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -52,6 +53,13 @@ def get_status():
 @app.get("/health")
 def healthcheck():
     return {"ok": True}
+
+
+@app.get("/config")
+def get_config():
+    return {
+        "grafana_url": os.getenv("PUBLIC_GRAFANA_URL", "").strip(),
+    }
 
 
 @app.post("/start")

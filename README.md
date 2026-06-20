@@ -63,8 +63,75 @@ python3 -m uvicorn backend.main:app --reload --port 8001
 - `backend/main.py`: API routes and app wiring
 - `backend/simulation.py`: production line logic
 - `backend/influx_client.py`: InfluxDB writes
+- `grafana/Dockerfile`: Railway-friendly Grafana image with provisioning
 - `frontend/index.html`: HMI page
 - `frontend/dockercompose.yml`: Docker stack
+
+## Railway Deployment
+
+Deploy this as `3` services inside one Railway project:
+
+1. `backend`
+   - Source directory: `backend`
+   - Dockerfile: `backend/Dockerfile`
+   - Public networking: enabled
+
+2. `influxdb`
+   - Deploy from image: `influxdb:2.7`
+   - Add a volume mounted at `/var/lib/influxdb2`
+   - Keep private unless you specifically need public access
+
+3. `grafana`
+   - Source directory: `grafana`
+   - Dockerfile: `grafana/Dockerfile`
+   - Add a volume mounted at `/var/lib/grafana`
+   - Public networking: enabled
+
+Shared variables to create in Railway:
+
+```text
+INFLUX_TOKEN=mytoken123
+INFLUX_ORG=gluestick
+INFLUX_BUCKET=production
+INFLUX_ADMIN_USER=admin
+INFLUX_ADMIN_PASSWORD=adminpass123
+GRAFANA_PASSWORD=admin
+```
+
+Service variables:
+
+- `backend`
+  - `INFLUX_URL=http://influxdb.railway.internal:8086`
+  - `INFLUX_TOKEN=${{shared.INFLUX_TOKEN}}`
+  - `INFLUX_ORG=${{shared.INFLUX_ORG}}`
+  - `INFLUX_BUCKET=${{shared.INFLUX_BUCKET}}`
+  - `PUBLIC_GRAFANA_URL=https://<your-grafana-public-domain>`
+
+- `influxdb`
+  - `DOCKER_INFLUXDB_INIT_MODE=setup`
+  - `DOCKER_INFLUXDB_INIT_USERNAME=${{shared.INFLUX_ADMIN_USER}}`
+  - `DOCKER_INFLUXDB_INIT_PASSWORD=${{shared.INFLUX_ADMIN_PASSWORD}}`
+  - `DOCKER_INFLUXDB_INIT_ORG=${{shared.INFLUX_ORG}}`
+  - `DOCKER_INFLUXDB_INIT_BUCKET=${{shared.INFLUX_BUCKET}}`
+  - `DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${{shared.INFLUX_TOKEN}}`
+
+- `grafana`
+  - `GF_SECURITY_ADMIN_PASSWORD=${{shared.GRAFANA_PASSWORD}}`
+  - `INFLUX_URL=http://influxdb.railway.internal:8086`
+  - `INFLUX_ORG=${{shared.INFLUX_ORG}}`
+  - `INFLUX_BUCKET=${{shared.INFLUX_BUCKET}}`
+  - `INFLUX_TOKEN=${{shared.INFLUX_TOKEN}}`
+
+Deployment flow:
+
+1. Create an empty Railway project.
+2. Add the `backend` service from this repo using source directory `backend`.
+3. Add the `grafana` service from this repo using source directory `grafana`.
+4. Add the `influxdb` service from the official image `influxdb:2.7`.
+5. Attach the required volumes to `influxdb` and `grafana`.
+6. Generate public domains for `backend` and `grafana`.
+7. Set `PUBLIC_GRAFANA_URL` on `backend` to the generated Grafana domain.
+8. Redeploy `backend` so the dashboard button points to the live Grafana instance.
 
 ## Assignment Checklist
 

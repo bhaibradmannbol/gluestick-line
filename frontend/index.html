@@ -537,7 +537,7 @@
 </head>
 <body>
 <main class="shell">
-    <section class="hero">
+    <section class="hero" id="live-dashboard">
         <div class="hero-top">
             <div>
                 <span class="eyebrow">Advanced Programming Project</span>
@@ -554,9 +554,9 @@
                     <span class="badge">Railway-Ready Stack</span>
                 </div>
                 <div class="cta-row">
-                    <a class="cta cta-primary" href="/">Open Live HMI</a>
+                    <a class="cta cta-primary" href="#live-dashboard">Open Live HMI</a>
                     <a class="cta cta-secondary" href="/health" target="_blank" rel="noreferrer">View API Status</a>
-                    <a class="cta cta-secondary" href="http://127.0.0.1:3000" target="_blank" rel="noreferrer">Open Grafana</a>
+                    <a class="cta cta-secondary" id="grafana-link" href="#" target="_blank" rel="noreferrer">Open Grafana</a>
                 </div>
             </div>
             <aside class="hero-side">
@@ -756,6 +756,26 @@
         "Cap Placement": "s4",
     };
 
+    async function loadConfig() {
+        try {
+            const response = await fetch("/config");
+            const config = await response.json();
+            const grafanaLink = document.getElementById("grafana-link");
+
+            if (config.grafana_url) {
+                grafanaLink.href = config.grafana_url;
+            } else {
+                grafanaLink.href = "#";
+                grafanaLink.addEventListener("click", (event) => {
+                    event.preventDefault();
+                    document.getElementById("conn").textContent = "Grafana URL not configured yet";
+                }, { once: true });
+            }
+        } catch {
+            document.getElementById("conn").textContent = "Unable to load public dashboard links";
+        }
+    }
+
     function formatTime(value) {
         return value ? new Date(value).toLocaleString() : "—";
     }
@@ -859,6 +879,7 @@
         }
     }
 
+    loadConfig();
     poll();
     setInterval(poll, 1000);
 </script>
