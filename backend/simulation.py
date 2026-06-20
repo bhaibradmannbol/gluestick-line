@@ -43,40 +43,54 @@ class ProductionLine:
         self._running = False
         self._lock    = threading.Lock()   # prevents race conditions
         self._thread  = None
+        self._run_token = 0
 
-    def _set_machine_state(self, state: str):
+    def _set_machine_state_locked(self, state: str):
         changed = self.machine_state != state
         self.machine_state = state
-        if changed and self.on_machine_state_change:
-            self.on_machine_state_change(state)
+        return state if changed else None
 
     # ── Public controls (called by FastAPI endpoints) ─────────────────────────
 
     def start(self):
+        state_to_emit = None
         with self._lock:
             if self._running:
                 return {"ok": False, "msg": "Already running"}
             if self.machine_state == "faulted":
                 return {"ok": False, "msg": "Machine faulted — press Reset first"}
             self._running = True
+            self._run_token += 1
             self.product_status = "waiting"
-            self._set_machine_state("running")
+            state_to_emit = self._set_machine_state_locked("running")
 
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
+        if state_to_emit and self.on_machine_state_change:
+            self.on_machine_state_change(state_to_emit)
         return {"ok": True, "msg": "Production started"}
 
     def stop(self):
+        state_to_emit = None
         with self._lock:
             self._running        = False
+            self._run_token += 1
             self.current_station = ""
             self.product_status  = "waiting"
-            self._set_machine_state("idle")
+            self.created_at      = None
+            self.completed_at    = None
+            self.last_defect_reason = ""
+            state_to_emit = self._set_machine_state_locked("idle")
+        self._join_worker()
+        if state_to_emit and self.on_machine_state_change:
+            self.on_machine_state_change(state_to_emit)
         return {"ok": True, "msg": "Production stopped"}
 
     def reset(self):
+        state_to_emit = None
         with self._lock:
             self._running           = False
+            self._run_token += 1
             self.current_station    = ""
             self.current_product_id = 0
             self.product_status     = "waiting"
@@ -85,7 +99,10 @@ class ProductionLine:
             self.total_produced     = 0
             self.defective_count    = 0
             self.last_defect_reason = ""
-            self._set_machine_state("idle")
+            state_to_emit = self._set_machine_state_locked("idle")
+        self._join_worker()
+        if state_to_emit and self.on_machine_state_change:
+            self.on_machine_state_change(state_to_emit)
         return {"ok": True, "msg": "Line reset — all counters cleared"}
 
     def get_status(self):
@@ -105,21 +122,29 @@ class ProductionLine:
 
     # ── Internal loop (runs in background thread) ─────────────────────────────
 
+    def _join_worker(self):
+        thread = self._thread
+        if thread and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=STATION_TIME + 0.5)
+
     def _run_loop(self):
         """Keeps producing glue sticks until stopped."""
         while True:
             with self._lock:
                 if not self._running:
                     break
-            self._process_one_product()
+                run_token = self._run_token
+            self._process_one_product(run_token)
             with self._lock:
                 keep_running = self._running
             if keep_running:
                 time.sleep(0.3)   # brief gap between products
 
-    def _process_one_product(self):
+    def _process_one_product(self, run_token: int):
         """Moves one product through all 4 stations. Stops at first defect."""
         with self._lock:
+            if run_token != self._run_token or not self._running:
+                return
             self.current_product_id += 1
             pid = self.current_product_id
 
@@ -127,8 +152,11 @@ class ProductionLine:
         is_defective  = False
         defect_reason = ""
         failed_station = STATIONS[-1]["name"]   # default fallback
+        state_to_emit = None
 
         with self._lock:
+            if run_token != self._run_token or not self._running:
+                return
             self.created_at = created_at.isoformat()
             self.completed_at = None
             self.product_status = "processing"
@@ -142,14 +170,20 @@ class ProductionLine:
 
             time.sleep(STATION_TIME)   # simulate work being done
 
+            with self._lock:
+                if run_token != self._run_token or not self._running:
+                    return
+
             # Roll defect check
             if random.random() < DEFECT_CHANCE:
                 is_defective   = True
                 defect_reason  = station["defect"]
                 failed_station = station["name"]
                 with self._lock:
+                    if run_token != self._run_token or not self._running:
+                        return
                     self._running = False
-                    self._set_machine_state("faulted")
+                    state_to_emit = self._set_machine_state_locked("faulted")
                     self.product_status = "defective"
                     self.last_defect_reason = defect_reason
                 break   # no point continuing assembly with a defect
@@ -159,6 +193,8 @@ class ProductionLine:
         status = "defective" if is_defective else "completed"
 
         with self._lock:
+            if run_token != self._run_token:
+                return
             self.total_produced += 1
             if is_defective:
                 self.defective_count += 1
@@ -166,6 +202,9 @@ class ProductionLine:
                 self.product_status = "completed"
             self.current_station = ""
             self.completed_at = completed_at.isoformat()
+
+        if state_to_emit and self.on_machine_state_change:
+            self.on_machine_state_change(state_to_emit)
 
         # Send data to InfluxDB via callback (set in main.py)
         if self.on_product_complete:
